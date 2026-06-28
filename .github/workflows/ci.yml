@@ -18,7 +18,6 @@ jobs:
             output: hello-linux
           - os: windows-latest
             name: windows
-            compiler: x86_64-w64-mingw32-gcc
             output: hello.exe
           - os: macos-latest
             name: macos
@@ -29,16 +28,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install MinGW for Windows build
+      - name: Setup MSYS2 for Windows build
         if: matrix.name == 'windows'
-        uses: egor-tensin/setup-mingw@v2
+        uses: msys2/setup-msys2@v2
         with:
-          platform: x64
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-gcc
 
       - name: Compile ${{ matrix.name }} binary
+        if: matrix.name != 'windows'
         shell: bash
         run: |
-          ${{ matrix.compiler }} -O2 -Wall -Wextra -o ${{ matrix.output }} hello.c
+          ${{ matrix.compiler || 'gcc' }} -O2 -Wall -Wextra -o ${{ matrix.output }} hello.c
+
+      - name: Compile Windows binary
+        if: matrix.name == 'windows'
+        shell: msys2 {0}
+        run: |
+          x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -o hello.exe hello.c
 
       - name: Upload ${{ matrix.name }} artifact
         uses: actions/upload-artifact@v4
