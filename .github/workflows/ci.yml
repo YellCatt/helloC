@@ -1,0 +1,70 @@
+name: C Build CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-native:
+    name: Build on ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux
+            compiler: gcc
+            output: hello-linux
+          - os: windows-latest
+            name: windows
+            compiler: x86_64-w64-mingw32-gcc
+            output: hello.exe
+          - os: macos-latest
+            name: macos
+            compiler: clang
+            output: hello-macos
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install MinGW for Windows build
+        if: matrix.name == 'windows'
+        uses: egor-tensin/setup-mingw@v2
+        with:
+          platform: x64
+
+      - name: Compile ${{ matrix.name }} binary
+        shell: bash
+        run: |
+          ${{ matrix.compiler }} -O2 -Wall -Wextra -o ${{ matrix.output }} hello.c
+
+      - name: Upload ${{ matrix.name }} artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hello-${{ matrix.name }}
+          path: ${{ matrix.output }}
+
+  build-hiwifi2:
+    name: Build for HiWiFi / 极路由2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install MIPS cross compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mipsel-linux-gnu binutils-mipsel-linux-gnu
+
+      - name: Compile for HiWiFi / 极路由2
+        run: |
+          mipsel-linux-gnu-gcc -O2 -Wall -Wextra -o hello-hiwifi2 hello.c
+
+      - name: Upload HiWiFi artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hello-hiwifi2
+          path: hello-hiwifi2
