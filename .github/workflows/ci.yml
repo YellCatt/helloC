@@ -9,6 +9,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-native:
     name: Build on ${{ matrix.name }}
@@ -45,7 +48,7 @@ jobs:
         if: matrix.name != 'windows'
         shell: bash
         run: |
-          ${{ matrix.compiler || 'gcc' }} -O2 -Wall -Wextra -o ${{ matrix.output }} hello.c
+          ${{ matrix.compiler || 'gcc' }} -O2 -Wall -Wextra -o "${{ matrix.output }}" hello.c
 
       - name: Compile Windows binary
         if: matrix.name == 'windows'
@@ -60,27 +63,43 @@ jobs:
           path: ${{ matrix.output }}
 
   build-hiwifi2:
-    name: Build for HiWiFi / 极路由2
+    name: Build for HiWiFi / 极路由2 (mt7620)
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install MIPS cross compiler
+      - name: Install OpenWrt SDK (mt7620)
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-mipsel-linux-gnu binutils-mipsel-linux-gnu
+          sudo apt-get install -y xz-utils
 
-      - name: Compile for HiWiFi / 极路由2
+          wget -q https://downloads.openwrt.org/releases/23.05.3/targets/ramips/mt7620/openwrt-sdk-23.05.3-ramips-mt7620_gcc-12.3.0_musl.Linux-x86_64.tar.xz
+
+          mkdir -p openwrt-sdk
+          tar xf openwrt-sdk-*.tar.xz -C openwrt-sdk --strip-components=1
+
+          TOOLCHAIN_DIR=$(find openwrt-sdk/staging_dir -name "toolchain-*" -type d | head -1)
+          echo "$PWD/$TOOLCHAIN_DIR/bin" >> "$GITHUB_PATH"
+          echo "STAGING_DIR=$PWD/openwrt-sdk/staging_dir" >> "$GITHUB_ENV"
+
+      - name: Build (极路由2 - 静态链接)
         run: |
-          mipsel-linux-gnu-gcc -O2 -Wall -Wextra -o hello-hiwifi2 hello.c
+          mipsel-openwrt-linux-musl-gcc -O2 -Wall -Wextra -static -s -o hello-hiwifi2 hello.c
+
+          file hello-hiwifi2
+          ldd hello-hiwifi2 2>/dev/null || echo "Static binary confirmed"
+
+          tar czvf hello-hiwifi2.tar.gz hello-hiwifi2
 
       - name: Upload HiWiFi artifact
         uses: actions/upload-artifact@v4
         with:
           name: hello-hiwifi2
-          path: hello-hiwifi2
+          path: |
+            hello-hiwifi2
+            hello-hiwifi2.tar.gz
 
   release:
     name: Publish Release
@@ -102,4 +121,5 @@ jobs:
             dist/hello-windows/hello.exe
             dist/hello-macos/hello-macos
             dist/hello-hiwifi2/hello-hiwifi2
+            dist/hello-hiwifi2/hello-hiwifi2.tar.gz
           generate_release_notes: true
